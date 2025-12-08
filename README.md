@@ -13,7 +13,7 @@ This app was created to streamline specific workflows and improve accessibility:
 
 ## Download
 Download the latest version from the link below:
-- [Download QikMenu](refs/downloads/QikMenu-251208b.7z)
+- [QikMenu Download Folder](refs/downloads/)
 
 ## Installation & Execution
 1. Unzip the downloaded `7z` file to a desired folder.
