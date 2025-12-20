@@ -52,8 +52,16 @@ Rust로 작성된 가벼운 윈도우 시스템 트레이 애플리케이션입�
 # 사용 가능한 언어: ko (한국어), en (영어), ja (일본어)
 locale=ko
 
+[env]
+# 'short_key'는 QikMenu가 실행된 상태에서 팝업 메뉴를 띄우는 단축키
+# 특수키: [Alt], [Shift], [Ctrl], [Win], [F1]~[F12] 등
+# 예: [Alt]+/ (Alt 키와 / 키를 동시에 누름)
+short_key=[Alt]+/
+
 [apps]
 # 형식: 표시이름=명령어
+# 참고: 경로에 공백이 포함된 경우 따옴표로 묶어주세요:
+# 예: 내 프로그램="C:\Program Files\MyApp\app.exe"
 # 옵시디안
 Obsidian MyVault1=obsidian://open/?vault=MyWorks1
 Obsidian MyVault2=obsidian://open/?vault=MyWorks2

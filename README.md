@@ -53,8 +53,16 @@ To run this application automatically when Windows starts:
 # Available locales: ko (Korean), en (English), ja (Japanese)
 locale=en
 
+[env]
+# 'short_key' defines a global hotkey to pop up the menu.
+# Special keys: [Alt], [Shift], [Ctrl], [Win], [F1]-[F12], etc.
+# Example: [Alt]+/ to trigger with Alt + /
+short_key=[Alt]+/
+
 [apps]
 # format: Label=Command
+# Note: If your path contains spaces, wrap it in quotes:
+# Example: My App="C:\Program Files\MyApp\app.exe"
 # Obsidian
 Obsidian MyVault1=obsidian://open/?vault=MyWorks1
 Obsidian MyVault2=obsidian://open/?vault=MyWorks2

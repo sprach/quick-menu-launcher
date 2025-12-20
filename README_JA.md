@@ -52,8 +52,16 @@ Windows起動時にこのプログラムを自動的に実行するには：
 # 利用可能な言語: ja (日本語), en (英語), ko (韓国語)
 locale=ja
 
+[env]
+# 'short_key'はQikMenuが実行されている状態でポップアップメニューを表示するショートカットキー
+# 特殊キー: [Alt], [Shift], [Ctrl], [Win], [F1]~[F12] など
+# 例: [Alt]+/ (Altキーと/キーを同時に押す)
+short_key=[Alt]+/
+
 [apps]
 # 形式: 表示名=コマンド
+# 注意: パスにスペースが含まれる場合は、引用符で囲んでください:
+# 例: マイアプリ="C:\Program Files\MyApp\app.exe"
 # Obsidian
 Obsidian MyVault1=obsidian://open/?vault=MyWorks1
 Obsidian MyVault2=obsidian://open/?vault=MyWorks2
