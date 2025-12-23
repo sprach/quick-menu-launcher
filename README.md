@@ -24,6 +24,7 @@ Download the latest version from the link below:
 ## Usage
 Once running, an icon will appear in the system tray area (bottom right) of the Windows taskbar.
 
+
 ![Tray Menu Screenshot](refs/cap-launchTrayMenu.jpg)
 
 1.  **Open Menu**: Click (Left or Right) the tray icon to reveal the menu as shown above.
@@ -37,6 +38,16 @@ Once running, an icon will appear in the system tray area (bottom right) of the 
     - After saving changes, click **"Reload Config"** in the menu.
     - The menu will update immediately without restarting the application.
 5.  **Exit**: Click **"Exit"** to terminate the application.
+
+## Menu Invocation Method
+There are two ways to open the menu:
+
+1.  **Tray Icon Click**:
+    -   Left-click or Right-click on the **QikMenu icon** in the system tray to toggle the menu.
+
+2.  **Global Hotkey**:
+    -   You can press a predefined key combination (e.g., `[Alt]+/`) anywhere in Windows to pop up the menu.
+    -   This hotkey is customizable in the `QikMenu.ini` file under the `[env]` section (see Configuration below).
 
 ## Auto-start with Windows
 To run this application automatically when Windows starts:
@@ -54,10 +65,10 @@ To run this application automatically when Windows starts:
 locale=en
 
 [env]
-# 'short_key' defines a global hotkey to pop up the menu.
+# 'hotkey' defines a global hotkey to pop up the menu.
 # Special keys: [Alt], [Shift], [Ctrl], [Win], [F1]-[F12], etc.
 # Example: [Alt]+/ to trigger with Alt + /
-short_key=[Alt]+/
+hotkey=[Alt]+/
 
 [apps]
 # format: Label=Command

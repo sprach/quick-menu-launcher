@@ -35,10 +35,11 @@ const MENU_ID_RELOAD: &str = "menu_reload";
 const MENU_ID_EXIT: &str = "menu_exit";
 
 // App. Version History
+// - 251223a: 'short_key' 설정을 'hotkey'로 변경하고 도움말에 메뉴 호출 방법 추가.
 // - 251221a: QikMenu 호출하는 단축키 정의 추가하여 단축키를 누를 경우 메뉴가 바로 뜨도록 한다.
 // - 251215a: 폴더명이나 파일명에 공백이 포함된 경우 따옴표(")로 묶어주면 해당 명령어는 하나로 인식하도록 함
 // - 251208b: 첫 릴리즈
-const APP_VERSION: &str = "251221a";
+const APP_VERSION: &str = "251223a";
 
 // Function: Load Config | 환경 설정 로드 함수
 fn load_config(ini_path: &Path) -> (String, Vec<(String, String)>, String) {
@@ -46,7 +47,7 @@ fn load_config(ini_path: &Path) -> (String, Vec<(String, String)>, String) {
     
     let mut locale = "ko".to_string();
     let mut current_section = "".to_string();
-    let mut short_key = "".to_string();
+    let mut hotkey = "".to_string();
     let mut app_entries: Vec<(String, String)> = Vec::new();
 
     for line in contents.lines() {
@@ -70,8 +71,8 @@ fn load_config(ini_path: &Path) -> (String, Vec<(String, String)>, String) {
                         locale = value.to_lowercase();
                     }
                 } else if current_section == "env" {
-                    if key.eq_ignore_ascii_case("short_key") {
-                        short_key = value.to_string();
+                    if key.eq_ignore_ascii_case("hotkey") {
+                        hotkey = value.to_string();
                     }
                 } else if current_section == "apps" {
                     app_entries.push((key.to_string(), value.to_string()));
@@ -79,7 +80,7 @@ fn load_config(ini_path: &Path) -> (String, Vec<(String, String)>, String) {
             }
         }
     }
-    (locale, app_entries, short_key)
+    (locale, app_entries, hotkey)
 }
 
 // Function: Parse Hotkey String | 단축키 문자열 파싱
@@ -400,7 +401,7 @@ fn main() {
         .join("QikMenu.ini");
 
     // Initial Load
-    let (mut locale, mut app_entries, mut short_key_str) = load_config(&ini_path);
+    let (mut locale, mut app_entries, mut hotkey_str) = load_config(&ini_path);
     log_msg("INFO", &format!("Config Loaded. Locale: {}, Item Count: {}", locale, app_entries.len()));
 
     // Check Single Instance
@@ -426,13 +427,13 @@ fn main() {
 
     // 5. Setup Hotkey
     let hotkey_manager = GlobalHotKeyManager::new().unwrap();
-    let mut current_hotkey: Option<HotKey> = parse_hotkey(&short_key_str);
+    let mut current_hotkey: Option<HotKey> = parse_hotkey(&hotkey_str);
 
     if let Some(hk) = current_hotkey {
         if let Err(e) = hotkey_manager.register(hk) {
             log_msg("ERROR", &format!("Failed to register hotkey: {}", e));
         } else {
-            log_msg("INFO", &format!("Hotkey registered: {}", short_key_str));
+            log_msg("INFO", &format!("Hotkey registered: {}", hotkey_str));
         }
     }
 
@@ -475,23 +476,23 @@ fn main() {
              } else if id == MENU_ID_RELOAD {
                  // Reload Logic
                  log_msg("INFO", "Reloading Configuration...");
-                 let (new_locale, new_app_entries, new_short_key_str) = load_config(&ini_path);
+                 let (new_locale, new_app_entries, new_hotkey_str) = load_config(&ini_path);
                  let (new_menu, new_map) = create_menu(&new_locale, &new_app_entries);
                  
                  // Update Hotkey
-                 if new_short_key_str != short_key_str {
+                 if new_hotkey_str != hotkey_str {
                      if let Some(hk) = current_hotkey {
                          let _ = hotkey_manager.unregister(hk);
                      }
-                     current_hotkey = parse_hotkey(&new_short_key_str);
+                     current_hotkey = parse_hotkey(&new_hotkey_str);
                      if let Some(hk) = current_hotkey {
                          if let Err(e) = hotkey_manager.register(hk) {
                              log_msg("ERROR", &format!("Failed to register new hotkey: {}", e));
                          } else {
-                             log_msg("INFO", &format!("New hotkey registered: {}", new_short_key_str));
+                             log_msg("INFO", &format!("New hotkey registered: {}", new_hotkey_str));
                          }
                      }
-                     short_key_str = new_short_key_str;
+                     hotkey_str = new_hotkey_str;
                  }
                  
                  // Update State

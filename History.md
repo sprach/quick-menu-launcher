@@ -1,4 +1,9 @@
 # Version History
+ 
+## 251223a
+- **Enhanced Configuration**: Renamed `short_key` to `hotkey` for clarity.
+- **Documentation**: Added detailed 'Menu Invocation Method' section (Tray Icon & Hotkey).
+
 
 ## 251221a
 - **Global Hotkey Support**: Added ability to trigger the menu using a configurable hotkey (e.g., `[Alt]+/`) defined in `QikMenu.ini`.
