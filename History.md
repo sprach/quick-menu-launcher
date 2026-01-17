@@ -1,4 +1,9 @@
 # Version History
+
+## 260117a
+- **Hotkey Parsing Optimization**: Replaced manual `match` (switch) statements for alpha-numeric characters with calculation-based keycode mapping for improved efficiency and code maintainability.
+- **Maintenance**: Added release binaries and updated version metadata.
+
  
 ## 251223a
 - **Enhanced Configuration**: Renamed `short_key` to `hotkey` for clarity.

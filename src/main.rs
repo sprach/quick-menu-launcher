@@ -40,11 +40,12 @@ const MENU_ID_RELOAD: &str = "menu_reload";
 const MENU_ID_EXIT: &str = "menu_exit";
 
 // App. Version History
+// - 260117a: 핫키를 파싱할 때 Alpha-numeric 문자는 match(switch)문을 이용하지 않고 계산을 통해 키코드를 알아내도록 변경.
 // - 251223a: 'short_key' 설정을 'hotkey'로 변경하고 도움말에 메뉴 호출 방법 추가.
 // - 251221a: QikMenu 호출하는 단축키 정의 추가하여 단축키를 누를 경우 메뉴가 바로 뜨도록 한다.
 // - 251215a: 폴더명이나 파일명에 공백이 포함된 경우 따옴표(")로 묶어주면 해당 명령어는 하나로 인식하도록 함
 // - 251208b: 첫 릴리즈
-const APP_VERSION: &str = "251223a";
+const APP_VERSION: &str = "260117a";
 
 // Function: Load Config | 환경 설정 로드 함수
 fn load_config(ini_path: &Path) -> (String, Vec<(String, String)>, String) {
