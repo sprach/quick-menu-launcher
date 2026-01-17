@@ -1,33 +1,38 @@
 // Windows subsystem to hide console window | 콘솔 창 숨기기
 #![windows_subsystem = "windows"]
 
-use muda::{IsMenuItem, Menu, MenuEvent, MenuItem, PredefinedMenuItem, Submenu, MenuId, ContextMenu};
-use tao::event::{Event, WindowEvent};
-use tao::event_loop::{ControlFlow, EventLoopBuilder};
-use tao::window::WindowBuilder;
-use tao::platform::windows::WindowExtWindows;
-use tray_icon::{TrayIcon, TrayIconBuilder, TrayIconEvent};
-use std::fs;
+use muda::{
+    ContextMenu, IsMenuItem, Menu, MenuEvent, MenuId, MenuItem, PredefinedMenuItem, Submenu,
+};
 use std::collections::HashMap;
+use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
+use tao::event::{Event, WindowEvent};
+use tao::event_loop::{ControlFlow, EventLoopBuilder};
+use tao::platform::windows::WindowExtWindows;
+use tao::window::WindowBuilder;
+use tray_icon::{TrayIcon, TrayIconBuilder, TrayIconEvent};
 
-use windows::{
-    core::*, 
-    Win32::UI::WindowsAndMessaging::*,
-    Win32::Foundation::{POINT, HWND, BOOL, WPARAM, LPARAM},
-    Win32::System::Threading::GetCurrentThreadId,
-    Win32::UI::Input::KeyboardAndMouse::*,
-    Win32::UI::Input::KeyboardAndMouse::{SetFocus, SetActiveWindow},
+use global_hotkey::{
+    hotkey::{Code, HotKey, Modifiers},
+    GlobalHotKeyEvent, GlobalHotKeyManager,
 };
 use single_instance::SingleInstance;
-use global_hotkey::{GlobalHotKeyManager, hotkey::{HotKey, Modifiers, Code}, GlobalHotKeyEvent};
+use windows::{
+    core::*,
+    Win32::Foundation::{BOOL, HWND, LPARAM, POINT, WPARAM},
+    Win32::System::Threading::GetCurrentThreadId,
+    Win32::UI::Input::KeyboardAndMouse::*,
+    Win32::UI::Input::KeyboardAndMouse::{SetActiveWindow, SetFocus},
+    Win32::UI::WindowsAndMessaging::*,
+};
 
 mod localization; // Localization module | 번역 모듈
 use localization::LocalizedStrings;
 
-use std::time::SystemTime;
 use chrono::Local;
+use std::time::SystemTime;
 
 // Static Menu IDs | 고정 메뉴 ID
 const MENU_ID_EDIT: &str = "menu_edit_env";
@@ -44,7 +49,7 @@ const APP_VERSION: &str = "251223a";
 // Function: Load Config | 환경 설정 로드 함수
 fn load_config(ini_path: &Path) -> (String, Vec<(String, String)>, String) {
     let contents = fs::read_to_string(ini_path).unwrap_or_default();
-    
+
     let mut locale = "ko".to_string();
     let mut current_section = "".to_string();
     let mut hotkey = "".to_string();
@@ -57,7 +62,7 @@ fn load_config(ini_path: &Path) -> (String, Vec<(String, String)>, String) {
         }
 
         if trimmed.starts_with('[') && trimmed.ends_with(']') {
-            current_section = trimmed[1..trimmed.len()-1].to_lowercase();
+            current_section = trimmed[1..trimmed.len() - 1].to_lowercase();
             continue;
         }
 
@@ -96,12 +101,12 @@ fn parse_hotkey(hotkey_str: &str) -> Option<HotKey> {
     // A simple split strategy:
     // 1. Identify modifiers like [Alt], [Ctrl], etc.
     // 2. Identify the main key.
-    
-    // Naive parsing: split by '+' might break '++'. 
+
+    // Naive parsing: split by '+' might break '++'.
     // Let's iterate manually or pre-process.
     // If we replace "++" with "+PLUS", then split by '+', it might work?
     // "[Alt]++" -> "[Alt]+PLUS" -> ["[Alt]", "PLUS"]
-    
+
     let temp_str = hotkey_str.replace("++", "+Plus");
     let parts: Vec<&str> = temp_str.split('+').collect();
 
@@ -113,7 +118,7 @@ fn parse_hotkey(hotkey_str: &str) -> Option<HotKey> {
             "[ctrl]" => mods |= Modifiers::CONTROL,
             "[shift]" => mods |= Modifiers::SHIFT,
             "[win]" | "[meta]" => mods |= Modifiers::META,
-            
+
             // Special Keys
             "[space]" => key_code = Some(Code::Space),
             "[tab]" => key_code = Some(Code::Tab),
@@ -125,7 +130,7 @@ fn parse_hotkey(hotkey_str: &str) -> Option<HotKey> {
             "[down]" => key_code = Some(Code::ArrowDown),
             "[left]" => key_code = Some(Code::ArrowLeft),
             "[right]" => key_code = Some(Code::ArrowRight),
-            
+
             // F-Keys
             "[f1]" => key_code = Some(Code::F1),
             "[f2]" => key_code = Some(Code::F2),
@@ -139,65 +144,70 @@ fn parse_hotkey(hotkey_str: &str) -> Option<HotKey> {
             "[f10]" => key_code = Some(Code::F10),
             "[f11]" => key_code = Some(Code::F11),
             "[f12]" => key_code = Some(Code::F12),
-            
+
             // Specific for "++" case handled above
-            "plus" => key_code = Some(Code::Equal), // Usually '+' is on Equal key or NumpadAdd. 
-                                                    // 'Code::Equal' is standard '=' key which is '+' with Shift.
-                                                    // 'Code::NumpadAdd' is keypad +.
-                                                    // Let's assume standard keyboard '+' (Shift+=). 
-                                                    // But global-hotkey Code maps to physical keys.
-                                                    // Code::Equal is the key next to Backspace.
-                                                    // If user means keypad +, it's NumpadAdd.
-                                                    // Based on request "++", it likely means the '+' character key.
+            "plus" => key_code = Some(Code::Equal), // Usually '+' is on Equal key or NumpadAdd.
+            // 'Code::Equal' is standard '=' key which is '+' with Shift.
+            // 'Code::NumpadAdd' is keypad +.
+            // Let's assume standard keyboard '+' (Shift+=).
+            // But global-hotkey Code maps to physical keys.
+            // Code::Equal is the key next to Backspace.
+            // If user means keypad +, it's NumpadAdd.
+            // Based on request "++", it likely means the '+' character key.
 
             // Single Characters
             s if s.len() == 1 => {
                 let c = s.chars().next().unwrap();
                 if c.is_ascii_alphabetic() {
                     // Map A-Z to Code::KeyA...
-                     match c {
-                        'a' => key_code = Some(Code::KeyA),
-                        'b' => key_code = Some(Code::KeyB),
-                        'c' => key_code = Some(Code::KeyC),
-                        'd' => key_code = Some(Code::KeyD),
-                        'e' => key_code = Some(Code::KeyE),
-                        'f' => key_code = Some(Code::KeyF),
-                        'g' => key_code = Some(Code::KeyG),
-                        'h' => key_code = Some(Code::KeyH),
-                        'i' => key_code = Some(Code::KeyI),
-                        'j' => key_code = Some(Code::KeyJ),
-                        'k' => key_code = Some(Code::KeyK),
-                        'l' => key_code = Some(Code::KeyL),
-                        'm' => key_code = Some(Code::KeyM),
-                        'n' => key_code = Some(Code::KeyN),
-                        'o' => key_code = Some(Code::KeyO),
-                        'p' => key_code = Some(Code::KeyP),
-                        'q' => key_code = Some(Code::KeyQ),
-                        'r' => key_code = Some(Code::KeyR),
-                        's' => key_code = Some(Code::KeyS),
-                        't' => key_code = Some(Code::KeyT),
-                        'u' => key_code = Some(Code::KeyU),
-                        'v' => key_code = Some(Code::KeyV),
-                        'w' => key_code = Some(Code::KeyW),
-                        'x' => key_code = Some(Code::KeyX),
-                        'y' => key_code = Some(Code::KeyY),
-                        'z' => key_code = Some(Code::KeyZ),
-                        _ => {}
-                    }
+                    let c_key_code = Code::KeyA as u8 + (c.to_ascii_lowercase() as u8 - 'a' as u8);
+                    key_code = Some(unsafe { std::mem::transmute(c_key_code) });
+                    //  match c {
+                    //     'a' => key_code = Some(Code::KeyA),
+                    //     'b' => key_code = Some(Code::KeyB),
+                    //     'c' => key_code = Some(Code::KeyC),
+                    //     'd' => key_code = Some(Code::KeyD),
+                    //     'e' => key_code = Some(Code::KeyE),
+                    //     'f' => key_code = Some(Code::KeyF),
+                    //     'g' => key_code = Some(Code::KeyG),
+                    //     'h' => key_code = Some(Code::KeyH),
+                    //     'i' => key_code = Some(Code::KeyI),
+                    //     'j' => key_code = Some(Code::KeyJ),
+                    //     'k' => key_code = Some(Code::KeyK),
+                    //     'l' => key_code = Some(Code::KeyL),
+                    //     'm' => key_code = Some(Code::KeyM),
+                    //     'n' => key_code = Some(Code::KeyN),
+                    //     'o' => key_code = Some(Code::KeyO),
+                    //     'p' => key_code = Some(Code::KeyP),
+                    //     'q' => key_code = Some(Code::KeyQ),
+                    //     'r' => key_code = Some(Code::KeyR),
+                    //     's' => key_code = Some(Code::KeyS),
+                    //     't' => key_code = Some(Code::KeyT),
+                    //     'u' => key_code = Some(Code::KeyU),
+                    //     'v' => key_code = Some(Code::KeyV),
+                    //     'w' => key_code = Some(Code::KeyW),
+                    //     'x' => key_code = Some(Code::KeyX),
+                    //     'y' => key_code = Some(Code::KeyY),
+                    //     'z' => key_code = Some(Code::KeyZ),
+                    //     _ => {}
+                    // }
                 } else if c.is_numeric() {
-                     match c {
-                        '1' => key_code = Some(Code::Digit1),
-                        '2' => key_code = Some(Code::Digit2),
-                        '3' => key_code = Some(Code::Digit3),
-                        '4' => key_code = Some(Code::Digit4),
-                        '5' => key_code = Some(Code::Digit5),
-                        '6' => key_code = Some(Code::Digit6),
-                        '7' => key_code = Some(Code::Digit7),
-                        '8' => key_code = Some(Code::Digit8),
-                        '9' => key_code = Some(Code::Digit9),
-                        '0' => key_code = Some(Code::Digit0),
-                        _ => {}
-                     }
+                    // 0..9
+                    let c_key_code = Code::Digit0 as u8 + (c as u8 - '0' as u8);
+                    key_code = Some(unsafe { std::mem::transmute(c_key_code) });
+                    //  match c {
+                    //     '1' => key_code = Some(Code::Digit1),
+                    //     '2' => key_code = Some(Code::Digit2),
+                    //     '3' => key_code = Some(Code::Digit3),
+                    //     '4' => key_code = Some(Code::Digit4),
+                    //     '5' => key_code = Some(Code::Digit5),
+                    //     '6' => key_code = Some(Code::Digit6),
+                    //     '7' => key_code = Some(Code::Digit7),
+                    //     '8' => key_code = Some(Code::Digit8),
+                    //     '9' => key_code = Some(Code::Digit9),
+                    //     '0' => key_code = Some(Code::Digit0),
+                    //     _ => {}
+                    //  }
                 } else {
                     // Symbols
                     match c {
@@ -223,7 +233,7 @@ fn parse_hotkey(hotkey_str: &str) -> Option<HotKey> {
     }
 
     if let Some(code) = key_code {
-         Some(HotKey::new(Some(mods), code))
+        Some(HotKey::new(Some(mods), code))
     } else {
         None
     }
@@ -234,7 +244,7 @@ unsafe fn force_window_foreground(hwnd: HWND) {
     let foreground_window = GetForegroundWindow();
     let current_thread_id = GetCurrentThreadId();
     let foreground_thread_id = GetWindowThreadProcessId(foreground_window, None);
-    
+
     // log_msg("INFO", &format!("Attempting Focus Steal: CurThread={}, ForeThread={}", current_thread_id, foreground_thread_id));
 
     // Try simple SetForegroundWindow first
@@ -247,20 +257,28 @@ unsafe fn force_window_foreground(hwnd: HWND) {
     // Fallback to AttachThreadInput
     if current_thread_id != foreground_thread_id {
         // log_msg("INFO", "Simple failed. Trying AttachThreadInput...");
-        let attached = windows::Win32::System::Threading::AttachThreadInput(foreground_thread_id, current_thread_id, BOOL(1));
+        let attached = windows::Win32::System::Threading::AttachThreadInput(
+            foreground_thread_id,
+            current_thread_id,
+            BOOL(1),
+        );
         if attached.as_bool() {
-             let set_res = SetForegroundWindow(hwnd);
-             if set_res.as_bool() {
-                 // log_msg("INFO", "SetForegroundWindow Success (Attached)");
-                 SetActiveWindow(hwnd);
-                 SetFocus(hwnd);
-             } else {
-                 log_msg("WARN", "SetForegroundWindow Failed (Attached)");
-             }
-             let _ = windows::Win32::System::Threading::AttachThreadInput(foreground_thread_id, current_thread_id, BOOL(0));
+            let set_res = SetForegroundWindow(hwnd);
+            if set_res.as_bool() {
+                // log_msg("INFO", "SetForegroundWindow Success (Attached)");
+                SetActiveWindow(hwnd);
+                SetFocus(hwnd);
+            } else {
+                log_msg("WARN", "SetForegroundWindow Failed (Attached)");
+            }
+            let _ = windows::Win32::System::Threading::AttachThreadInput(
+                foreground_thread_id,
+                current_thread_id,
+                BOOL(0),
+            );
         } else {
-             log_msg("WARN", "AttachThreadInput Failed");
-             SetForegroundWindow(hwnd);
+            log_msg("WARN", "AttachThreadInput Failed");
+            SetForegroundWindow(hwnd);
         }
     } else {
         // log_msg("INFO", "Already on Foreground Thread (but simple failed?)");
@@ -268,38 +286,46 @@ unsafe fn force_window_foreground(hwnd: HWND) {
         SetActiveWindow(hwnd);
         SetFocus(hwnd);
     }
-    
+
     BringWindowToTop(hwnd);
-    
+
     // Explicitly clear Alt key state by sending a dummy key up event?
     // Not implementing yet, risky.
 }
 
 // Function: Create Menu | 메뉴 생성 함수
-fn create_menu(locale: &str, app_entries: &Vec<(String, String)>) -> (Menu, HashMap<String, String>) {
+fn create_menu(
+    locale: &str,
+    app_entries: &Vec<(String, String)>,
+) -> (Menu, HashMap<String, String>) {
     let menu = Menu::new();
     let mut app_map: HashMap<String, String> = HashMap::new();
     let strings = LocalizedStrings::new(locale);
-    
+
     // Add App Items
     for (key, value) in app_entries {
         let item = MenuItem::new(key, true, None);
         let _ = menu.append(&item);
         app_map.insert(item.id().as_ref().to_string(), value.clone());
     }
-    
+
     let _ = menu.append(&PredefinedMenuItem::separator());
 
     // Static Items with fixed IDs
-    let edit_env_item = MenuItem::with_id(MenuId::new(MENU_ID_EDIT), &strings.edit_environment, true, None);
+    let edit_env_item = MenuItem::with_id(
+        MenuId::new(MENU_ID_EDIT),
+        &strings.edit_environment,
+        true,
+        None,
+    );
     let _ = menu.append(&edit_env_item);
-    
+
     let reload_item = MenuItem::with_id(MenuId::new(MENU_ID_RELOAD), &strings.reload, true, None);
     let _ = menu.append(&reload_item);
-    
+
     let exit_item = MenuItem::with_id(MenuId::new(MENU_ID_EXIT), &strings.exit, true, None);
     let _ = menu.append(&exit_item);
-    
+
     (menu, app_map)
 }
 
@@ -310,7 +336,7 @@ fn get_log_dir() -> PathBuf {
         .parent()
         .unwrap_or_else(|| Path::new("."))
         .to_path_buf();
-    
+
     let logs_dir = current_dir.join("logs");
     if !logs_dir.exists() {
         let _ = fs::create_dir(&logs_dir);
@@ -323,15 +349,19 @@ fn log_msg(level: &str, msg: &str) {
     let now = Local::now();
     let date_str = now.format("%Y-%m-%d").to_string();
     let time_str = now.format("%Y-%m-%d %H:%M:%S").to_string();
-    
+
     let logs_dir = get_log_dir();
     let log_file_path = logs_dir.join(format!("{}.log", date_str));
-    
+
     let log_entry = format!("[{}] [{}] {}\n", time_str, level, msg);
-    
+
     // Append to file
     use std::io::Write;
-    if let Ok(mut file) = fs::OpenOptions::new().create(true).append(true).open(log_file_path) {
+    if let Ok(mut file) = fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(log_file_path)
+    {
         let _ = file.write_all(log_entry.as_bytes());
     }
 }
@@ -388,7 +418,10 @@ fn parse_cmd(input: &str) -> Vec<String> {
 fn main() {
     // 1. Logging Initialization
     clean_old_logs();
-    log_msg("INFO", &format!("Application Started. Version: {}", APP_VERSION));
+    log_msg(
+        "INFO",
+        &format!("Application Started. Version: {}", APP_VERSION),
+    );
 
     let event_loop = EventLoopBuilder::new().build();
 
@@ -402,7 +435,14 @@ fn main() {
 
     // Initial Load
     let (mut locale, mut app_entries, mut hotkey_str) = load_config(&ini_path);
-    log_msg("INFO", &format!("Config Loaded. Locale: {}, Item Count: {}", locale, app_entries.len()));
+    log_msg(
+        "INFO",
+        &format!(
+            "Config Loaded. Locale: {}, Item Count: {}",
+            locale,
+            app_entries.len()
+        ),
+    );
 
     // Check Single Instance
     let instance = SingleInstance::new("QikMenu_Lock").unwrap();
@@ -448,7 +488,7 @@ fn main() {
         .into_rgba8();
     let (width, height) = icon_image.dimensions();
     let rgba = icon_image.into_raw();
-    
+
     let tray_icon = TrayIconBuilder::new()
         .with_tooltip("QikMenu")
         .with_icon(tray_icon::Icon::from_rgba(rgba, width, height).expect("Failed to create icon"))
@@ -464,116 +504,115 @@ fn main() {
         // Poll every 50ms to check channels (Hotkeys, Tray, Menu)
         // This is necessary because these channels do not wake up the TAO event loop on their own.
         *control_flow = ControlFlow::WaitUntil(
-            std::time::Instant::now() + std::time::Duration::from_millis(50)
+            std::time::Instant::now() + std::time::Duration::from_millis(50),
         );
 
         if let Ok(event) = menu_channel.try_recv() {
-             let id = event.id.as_ref();
-             log_msg("INFO", &format!("Menu Item Clicked: {}", id));
+            let id = event.id.as_ref();
+            log_msg("INFO", &format!("Menu Item Clicked: {}", id));
 
-             if id == MENU_ID_EDIT {
-                 let _ = open::that(&ini_path);
-             } else if id == MENU_ID_RELOAD {
-                 // Reload Logic
-                 log_msg("INFO", "Reloading Configuration...");
-                 let (new_locale, new_app_entries, new_hotkey_str) = load_config(&ini_path);
-                 let (new_menu, new_map) = create_menu(&new_locale, &new_app_entries);
-                 
-                 // Update Hotkey
-                 if new_hotkey_str != hotkey_str {
-                     if let Some(hk) = current_hotkey {
-                         let _ = hotkey_manager.unregister(hk);
-                     }
-                     current_hotkey = parse_hotkey(&new_hotkey_str);
-                     if let Some(hk) = current_hotkey {
-                         if let Err(e) = hotkey_manager.register(hk) {
-                             log_msg("ERROR", &format!("Failed to register new hotkey: {}", e));
-                         } else {
-                             log_msg("INFO", &format!("New hotkey registered: {}", new_hotkey_str));
-                         }
-                     }
-                     hotkey_str = new_hotkey_str;
-                 }
-                 
-                 // Update State
-                 locale = new_locale;
-                 app_entries = new_app_entries;
-                 menu = new_menu;
-                 app_map = new_map;
-                 
-                 // Update Tray Menu
-                 let _ = tray_icon.set_menu(Some(Box::new(menu.clone())));
-                 log_msg("INFO", "Configuration Reloaded.");
-                 
-             } else if id == MENU_ID_EXIT {
-                 log_msg("INFO", "Exiting Application.");
-                 *control_flow = ControlFlow::Exit;
-             } else if let Some(cmd) = app_map.get(id) {
-                 log_msg("INFO", &format!("Executing Command: {}", cmd));
-                 let parts = parse_cmd(cmd);
-                 if !parts.is_empty() {
-                     let res = if parts.len() > 1 {
-                         // Multiple parts: Execute as Command (Exe + Args)
-                         std::process::Command::new(&parts[0])
-                             .args(&parts[1..])
-                             .spawn()
-                             .map(|_| ())
-                             .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
-                     } else {
-                         // Single part: Use open::that (Supports URLs, Files, Folders)
-                         open::that(&parts[0])
-                     };
+            if id == MENU_ID_EDIT {
+                let _ = open::that(&ini_path);
+            } else if id == MENU_ID_RELOAD {
+                // Reload Logic
+                log_msg("INFO", "Reloading Configuration...");
+                let (new_locale, new_app_entries, new_hotkey_str) = load_config(&ini_path);
+                let (new_menu, new_map) = create_menu(&new_locale, &new_app_entries);
 
-                     if let Err(e) = res {
+                // Update Hotkey
+                if new_hotkey_str != hotkey_str {
+                    if let Some(hk) = current_hotkey {
+                        let _ = hotkey_manager.unregister(hk);
+                    }
+                    current_hotkey = parse_hotkey(&new_hotkey_str);
+                    if let Some(hk) = current_hotkey {
+                        if let Err(e) = hotkey_manager.register(hk) {
+                            log_msg("ERROR", &format!("Failed to register new hotkey: {}", e));
+                        } else {
+                            log_msg(
+                                "INFO",
+                                &format!("New hotkey registered: {}", new_hotkey_str),
+                            );
+                        }
+                    }
+                    hotkey_str = new_hotkey_str;
+                }
+
+                // Update State
+                locale = new_locale;
+                app_entries = new_app_entries;
+                menu = new_menu;
+                app_map = new_map;
+
+                // Update Tray Menu
+                let _ = tray_icon.set_menu(Some(Box::new(menu.clone())));
+                log_msg("INFO", "Configuration Reloaded.");
+            } else if id == MENU_ID_EXIT {
+                log_msg("INFO", "Exiting Application.");
+                *control_flow = ControlFlow::Exit;
+            } else if let Some(cmd) = app_map.get(id) {
+                log_msg("INFO", &format!("Executing Command: {}", cmd));
+                let parts = parse_cmd(cmd);
+                if !parts.is_empty() {
+                    let res = if parts.len() > 1 {
+                        // Multiple parts: Execute as Command (Exe + Args)
+                        std::process::Command::new(&parts[0])
+                            .args(&parts[1..])
+                            .spawn()
+                            .map(|_| ())
+                            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
+                    } else {
+                        // Single part: Use open::that (Supports URLs, Files, Folders)
+                        open::that(&parts[0])
+                    };
+
+                    if let Err(e) = res {
                         let err_msg = format!("Execution Failed: {}", e);
                         eprintln!("{}", err_msg);
                         log_msg("ERROR", &err_msg);
-                     } else {
+                    } else {
                         log_msg("INFO", "Execution Triggered Successfully.");
-                     }
-                 }
-             }
+                    }
+                }
+            }
         }
-        
+
         if let Ok(event) = tray_channel.try_recv() {
             // println!("{event:?}");
         }
 
         if let Ok(event) = hotkey_channel.try_recv() {
             if event.state == global_hotkey::HotKeyState::Pressed {
-                 if let Some(hk) = current_hotkey {
-                     if event.id == hk.id() {
-                         log_msg("INFO", "Valid Hotkey Pressed. Processing...");
-                         
-                         // Drain multiple clicks
-                         while let Ok(_) = hotkey_channel.try_recv() {}
+                if let Some(hk) = current_hotkey {
+                    if event.id == hk.id() {
+                        log_msg("INFO", "Valid Hotkey Pressed. Processing...");
 
-                         // Show context menu at cursor
-                         unsafe {
-                             window.set_visible(true);
-                             
-                             let hwnd = HWND(window.hwnd() as _);
-                             force_window_foreground(hwnd);
-                             
-                             // Reset any stuck menu state (e.g. from Alt key)
-                             SendMessageW(hwnd, WM_CANCELMODE, WPARAM(0), LPARAM(0));
-                             
-                             log_msg("INFO", "Showing Menu...");
-                             let _ = menu.show_context_menu_for_hwnd(
-                                 window.hwnd() as isize, 
-                                 None
-                             );
-                             log_msg("INFO", "Menu Closed (Event Loop Resuming)");
-                             
-                             window.set_visible(false);
-                             
-                             // Ensure we release focus/foreground cleanly (optional, but good practice)
-                             // SetForegroundWindow(GetDesktopWindow()); 
-                         }
-                     }
-                 } else {
-                     log_msg("WARN", "Hotkey Pressed but ID mismatch or unknown");
-                 }
+                        // Drain multiple clicks
+                        while let Ok(_) = hotkey_channel.try_recv() {}
+
+                        // Show context menu at cursor
+                        unsafe {
+                            window.set_visible(true);
+
+                            let hwnd = HWND(window.hwnd() as _);
+                            force_window_foreground(hwnd);
+
+                            // Reset any stuck menu state (e.g. from Alt key)
+                            SendMessageW(hwnd, WM_CANCELMODE, WPARAM(0), LPARAM(0));
+
+                            log_msg("INFO", "Showing Menu...");
+                            let _ = menu.show_context_menu_for_hwnd(window.hwnd() as isize, None);
+                            log_msg("INFO", "Menu Closed (Event Loop Resuming)");
+
+                            window.set_visible(false);
+
+                            // Ensure we release focus/foreground cleanly (optional, but good practice)
+                            // SetForegroundWindow(GetDesktopWindow());
+                        }
+                    }
+                } else {
+                    log_msg("WARN", "Hotkey Pressed but ID mismatch or unknown");
+                }
             }
         }
     });
